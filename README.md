@@ -8,8 +8,17 @@ This webserver is able launch a website that is accessible thorugh a web browser
 
 
 ## How to start the server
-enter the following commands
-$ gcc -pthread main.c
-$ ./a.out
+enter the following command
+$make
+$ Then ./a.out
+
+## How to terminate server
+CTRL+C from the terminal 
 
 open a web browser and navigate to localhost:3000
+
+## Known bugs
+when I'm redirected to the CGI part. The html is unable to load the css part. Not sure why
+
+
+
