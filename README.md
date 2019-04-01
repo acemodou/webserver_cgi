@@ -12,4 +12,4 @@ enter the following commands
 $ gcc -pthread main.c
 $ ./a.out
 
-open a web browser and navigate to localhost:23456
+open a web browser and navigate to localhost:3000
