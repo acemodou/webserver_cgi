@@ -21,5 +21,3 @@ open a web browser and navigate to localhost:3000
 when I'm redirected to the CGI part. The html is unable to load the css part. Not sure why
 
 
-
-
