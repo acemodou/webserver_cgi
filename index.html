@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>SalesTax</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="http://localhost:3000/style.css" />
+</head>
+
+<body>
+    <div id="content">
+        <img src="images/giphy.gif">
+        <h1>Sales Tax Calculator</h1>
+        <p>Enter the values below and click "calculate".</p>
+        <form ACTION="http://localhost:3000/cgi-bin/sales_tax.class" METHOD=GET>
+            <div id="taxCalc">
+                <label>Item Cost: </label>
+                <input type="text" id="itemCost" name="cost" /><br>
+
+                <label>Tax Rate :</label>
+                <input type="text" id="taxRate" name="rate" />%<br>
+
+                <input type="submit" value="Calculate" />
+            </div>
+        </form>
+        <br><br><br>
+        <form ACTION="http://localhost:3000/cgi-bin/sales_tax.class" METHOD=POST>
+            <div id="taxCalc">
+                <label>POST Item Cost: </label>
+                <input type="text" id="itemCost" name="cost" /><br>
+
+                <label>POST Tax Rate :</label>
+                <input type="text" id="taxRate" name="rate" />%<br>
+
+                <input type="submit" value="Calculate" />
+            </div>
+        </form>
+
+    </div>
+
+
+</body>
+
+</html>
