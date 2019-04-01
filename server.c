@@ -41,41 +41,29 @@ static const char js_head[] = "HTTP/1.0 200 OK\n"\
 
 #define STRLEN(s) (sizeof(s)/sizeof(s[0])-1)
 
+void logger(char* lPath, char* ip, char* buffer);
+void* CGI_process(void * getData);
+void* client(void * getData);
+void Handler_signal(int signal);
+void Read_Configuration(int* connectCounter, char* rt, char* indirectFile, char* port);
 
-int countConnect;
-char* rt;
-char* indFile;
+
+
+
+int connectCounter;
+char* indirectFile;
 char* port;
-char * dummy;
+char * temp;
+char* rt;
 
-/*This struct is used to move data around between threads, and even in the main thread CGI
-  to enforce generalization whether data is copied to a thread or just passed to a function */
+/*This struct is used to store different data type*/
+
 struct getdata{
     int client_desc;
     char request [BUFF_SIZE];
 };
 
-void pLog(char* lPath, char* ip, char* buffer) {
-    FILE * access_log = fopen(lPath, "ab+");
-    if (access_log == NULL){
-        perror("cannot open access log file!");
-        exit(1);
-    }
-    char *logMsg = (char*) malloc(sizeof(char)*(BUFF_SIZE+15));
-    sprintf(logMsg,"%s\n%s\n\n",ip,buffer);
-    if (fputs(logMsg, access_log) < 0){
-        perror("error witing to access_log");
-        exit(1);
-    }
-
-    if (fclose(access_log) != 0) {
-        perror("error closing access log file!\n");
-        exit(1);
-    }
-    free(logMsg);
-}
-
-void* Client_CGI_Handler(void * getData){
+void* CGI_process(void * getData){
     struct getdata* getdata = (struct getdata *) getData;
     char* reBuff = getdata->request;
     int cSockID = getdata->client_desc;
@@ -86,7 +74,7 @@ void* Client_CGI_Handler(void * getData){
     getpeername(cSockID, (struct sockaddr *)&addr, &addr_size);
     char clientip [20];
     strcpy(clientip, inet_ntoa(addr.sin_addr));
-    pLog("logs/access_log.txt",clientip,reBuff);
+    logger("logs/access.txt",clientip,reBuff);
 
     //Copying the request data into a local array to tokenize and later clear the passed reference
     char messageBod [strlen(reBuff)];
@@ -94,8 +82,8 @@ void* Client_CGI_Handler(void * getData){
 
     //Parsing the requested file path
     strtok_r(reBuff," ", &reBuff);
-    char * reqFile = strtok_r(reBuff," ", &dummy);
-    reqFile=strtok_r(reqFile,"?", &dummy);
+    char * reqFile = strtok_r(reBuff," ", &temp);
+    reqFile=strtok_r(reqFile,"?", &temp);
 
     //Forking to a new process to handle CGI
     int procID = fork();
@@ -111,7 +99,7 @@ void* Client_CGI_Handler(void * getData){
         char* savingPointer;
         char* dir = strtok_r(dirParsing+1,"/", &savingPointer);
         chdir(dir);
-        dir=strtok_r(savingPointer,"/",&dummy);
+        dir=strtok_r(savingPointer,"/",&temp);
         char* execName = strtok(dir,".");
 
         //Starting the java program that handles the CGI Request.
@@ -128,7 +116,29 @@ void* Client_CGI_Handler(void * getData){
     }
 }
 
-void* clientHandler(void * getData) {
+void logger(char* lPath, char* ip, char* buffer) {
+    FILE * access = fopen(lPath, "ab+");
+    if (access == NULL){
+        perror("File cannot be open!");
+        exit(1);
+    }
+    char *message = (char*) malloc(sizeof(char)*(BUFF_SIZE+15));
+    sprintf(message,"%s\n%s\n\n",ip,buffer);
+    if (fputs(message, access) < 0){
+        perror("error writing to any file");
+        exit(1);
+    }
+
+    if (fclose(access) != 0) {
+        perror("Error closing access file!\n");
+        exit(1);
+    }
+    free(message);
+}
+
+
+
+void* client(void * getData) {
     char *seBuff = (char *) malloc(sizeof(char) * BUFF_SIZE);
     struct getdata* getdata = (struct getdata *) getData;
     char* reBuff = getdata->request;
@@ -142,7 +152,7 @@ void* clientHandler(void * getData) {
     getpeername(cSockID, (struct sockaddr *)&addr, &addr_size);
     char clientip [20];
     strcpy(clientip, inet_ntoa(addr.sin_addr));
-    pLog("logs/access_log.txt",clientip,reBuff);
+    logger("logs/access.txt",clientip,reBuff);
 
     //Copying the request data into a local array to tokenize and later clear the passed reference
     char messageBod [strlen(reBuff)];
@@ -151,11 +161,11 @@ void* clientHandler(void * getData) {
     //Parsing the requested file path
     strtok_r(reBuff, " ", &reBuff);
     char *reqFile = strtok_r(reBuff, " ", &reBuff);
-    reqFile = strtok_r(reqFile, "?", &dummy);
+    reqFile = strtok_r(reqFile, "?", &temp);
 
     //Sending the correct HTTP header based on the file extension
     if (strcmp(reqFile, "/") == 0) {
-        fedd = open(indFile, O_RDONLY);
+        fedd = open(indirectFile, O_RDONLY);
         send(cSockID, txt_head, STRLEN(txt_head), 0);
         while (rdSz = read(fedd, seBuff, BUFF_SIZE - 1)) {
             send(cSockID, seBuff, rdSz, 0);
@@ -170,7 +180,7 @@ void* clientHandler(void * getData) {
             strcpy(fileExtParser, reqFile);
             char *fileName;
             strtok_r(fileExtParser, ".", &fileName);
-            char *extension = strtok_r(fileName, ".", &dummy);
+            char *extension = strtok_r(fileName, ".", &temp);
             if (strcmp(extension, "gif") == 0)
                 send(cSockID, gif_head, STRLEN(gif_head), 0);
             else if (strcmp(extension, "jpg") == 0)
@@ -182,7 +192,7 @@ void* clientHandler(void * getData) {
             else
                 send(cSockID, js_head, STRLEN(js_head), 0);       
         }
-        //Responding to the client by sending the opened file requested.
+        //Responding to client
         while(rdSz = read(fedd,seBuff,BUFF_SIZE))
             send(cSockID,seBuff,rdSz,0);
     }
@@ -192,14 +202,9 @@ void* clientHandler(void * getData) {
     free(getData);
 }
 
-void signal_Handler(int signal) {
-    if (signal == SIGINT) {
-        exit(0);
-    }
-}
 
 
-void confReader(int* countConnect, char* rt, char* indFile, char* port) {
+void Read_Configuration(int* connectCounter, char* rt, char* indirectFile, char* port) {
     FILE * fstream = fopen("./conf/httpd.conf","r");
     if (fstream == NULL){
         perror("cannot open config file!");
@@ -218,32 +223,39 @@ void confReader(int* countConnect, char* rt, char* indFile, char* port) {
     char* temp;
     temp = strtok(lines[0],"=");
     temp = strtok(NULL,"=");
-    *countConnect = atoi(temp);
+    *connectCounter = atoi(temp);
     temp = strtok(lines[1],"=");
     strcpy(rt,strtok(NULL,"="));
     rt[strlen(rt)-1] = '\0';
     temp = strtok(lines[2],"=");
-    strcpy(indFile, strtok(NULL,"="));
-    indFile[strlen(indFile)-1] = '\0';
+    strcpy(indirectFile, strtok(NULL,"="));
+    indirectFile[strlen(indirectFile)-1] = '\0';
     temp = strtok(lines[3],"=");
     strcpy(port,strtok(NULL,"="));
     port[strlen(port)-1] = '\0';
 }
 
+void Handler_signal(int signal) {
+    if (signal == SIGINT) {
+        exit(0);
+    }
+}
+
+
 int main( int argc, char **argv ) {
     //Initializing and reading in the config file data then changing to rt directory.
-    countConnect = 0;
+    connectCounter = 0;
     rt = (char *) malloc(sizeof(char) * 100);
-    indFile = (char *) malloc(sizeof(char) * 100);
+    indirectFile = (char *) malloc(sizeof(char) * 100);
     port = (char *) malloc(sizeof(char) * 6);
-    confReader(&countConnect, rt, indFile, port);
+    Read_Configuration(&connectCounter, rt, indirectFile, port);
     chdir(rt);
 
     //Redirecting the stderr to the error log file
-    freopen("logs/error_log.txt","a+",stderr);
+    freopen("logs/error.txt","a+",stderr);
 
     //Registering the signal handler for when the server is Interrupted
-    signal(SIGINT, signal_Handler);
+    signal(SIGINT, Handler_signal);
     int sockfedd, newsockfedd, clilen;
     ssize_t n;
     char *reBuff = (char *) malloc(sizeof(char) * BUFF_SIZE);
@@ -252,7 +264,7 @@ int main( int argc, char **argv ) {
     sockfedd = passiveTCP(port,BUFF_SIZE);
     listen(sockfedd, 5);
 
-    /* Accept actual connection from the client */
+    /* Accept connection */
     while (1) {
         struct sockaddr_in cli_addr;
         clilen = sizeof(cli_addr);
@@ -261,10 +273,10 @@ int main( int argc, char **argv ) {
             perror("ERROR on accept");
             exit(1);
         }
-        /* If connection is established then start communicating */
+        /* start connection */
         n = recv(newsockfedd, reBuff, BUFF_SIZE - 1, 0);
         if (n < 0) {
-            perror("ERROR reading from socket");
+            perror("Cannot read socket socket");
             exit(1);
         }
         if(n==0)
@@ -276,16 +288,16 @@ int main( int argc, char **argv ) {
         strcpy(getdata->request, reBuff);
         bzero(reBuff, BUFF_SIZE+1);
         if (strstr(getdata->request, ".class") != NULL) {
-            Client_CGI_Handler(getdata);
+            CGI_process(getdata);
         } else{
             pthread_t tid;
-            if (pthread_create(&tid, NULL, clientHandler, (void *) getdata) < 0) {
+            if (pthread_create(&tid, NULL, client, (void *) getdata) < 0) {
                 perror("could not create thread");
                 exit(1);
             }
             int err = pthread_detach(tid);
             if (err) {
-                perror("could not make thread detachable");
+                perror("Thread not detacheable");
             }
         }
 
